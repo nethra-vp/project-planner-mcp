@@ -200,14 +200,10 @@ export class MyMCP extends McpAgent {
 			}
 		});
 
-		this.server.tool("update_todo", "Update a todo's properties", {
+		this.server.tool("delete_todo", "Delete todo from a project", {
 			todo_id: z.string().describe("Todo ID"),
-			title: z.string().optional().describe("New Todo title"),
-			description: z.string().optional().describe("New Todo description"),
-			status: z.enum(["pending","in_progress","completed"]).optional().describe("New Todo status"),
-			priority: z.enum(["low","medium","high"]).optional().describe("New Todo priority"),
 		}, 
-		async ({todo_id, title, description, status, priority}) => {
+		async ({todo_id}) => {
 			const todoData = await this.kv.get(`todo: ${todo_id}`)
 
 			if(!todoData) {
@@ -216,19 +212,19 @@ export class MyMCP extends McpAgent {
 
 			const todo: Todo = JSON.parse(todoData) 
 
-			if(title !== undefined) todo.title = title;
-			if(description !== undefined) todo.description = description;
-			if(status !== undefined) todo.status = status;
-			if(priority !== undefined) todo.priority = priority;
-			todo.updatedAt = new Date().toISOString();
+			// Remove from projects todo list 
+			const todoList = await this.getTodoList(todo.projectId);
+			const updatedList = todoList.filter(id => id !== todo_id)
+			await this.kv.put(`project: ${todo.projectId}: todos`, JSON.stringify(updatedList));
 
-			await this.kv.put(`todo: ${todo_id}`, JSON.stringify(todo))
+			// Remove todo
+			await this.kv.delete(`todo: ${todo_id}`);
 
 			return {
 				content: [
 					{
 						type: "text",
-						text: JSON.stringify(todo, null, 2),
+						text: `Todo ${todo_id} has been deleted.`
 					}
 				]
 			}
