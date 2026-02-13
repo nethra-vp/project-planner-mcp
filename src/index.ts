@@ -199,6 +199,40 @@ export class MyMCP extends McpAgent {
 				]
 			}
 		});
+
+		this.server.tool("update_todo", "Update a todo's properties", {
+			todo_id: z.string().describe("Todo ID"),
+			title: z.string().optional().describe("New Todo title"),
+			description: z.string().optional().describe("New Todo description"),
+			status: z.enum(["pending","in_progress","completed"]).optional().describe("New Todo status"),
+			priority: z.enum(["low","medium","high"]).optional().describe("New Todo priority"),
+		}, 
+		async ({todo_id, title, description, status, priority}) => {
+			const todoData = await this.kv.get(`todo: ${todo_id}`)
+
+			if(!todoData) {
+				throw new Error(`Todo with Id: ${todo_id} not found.`)
+			}
+
+			const todo: Todo = JSON.parse(todoData) 
+
+			if(title !== undefined) todo.title = title;
+			if(description !== undefined) todo.description = description;
+			if(status !== undefined) todo.status = status;
+			if(priority !== undefined) todo.priority = priority;
+			todo.updatedAt = new Date().toISOString();
+
+			await this.kv.put(`todo: ${todo_id}`, JSON.stringify(todo))
+
+			return {
+				content: [
+					{
+						type: "text",
+						text: JSON.stringify(todo, null, 2),
+					}
+				]
+			}
+		});
 	}
 }
 
