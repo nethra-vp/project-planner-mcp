@@ -54,6 +54,7 @@ export class MyMCP extends McpAgent {
 		return todos;
 	}
 
+	// Create a new project
 	async init() {
 		this.server.tool("create_project", "Create a new project", {
 			name: z.string().describe("Project name"), 
@@ -84,6 +85,7 @@ export class MyMCP extends McpAgent {
 			}
 		});
 
+		// List projects
 		this.server.tool("list_projects", "List all projects", {}, async () => {
 			const projectList = await this.getProjectList()
 			const projects: Project[] = []
@@ -105,6 +107,7 @@ export class MyMCP extends McpAgent {
 			}
 		})
 
+		// Get single project
 		this.server.tool("get_project", "Get a specific project by ID", {project_id: z.string().describe("Project Id")}, async ({project_id}) => {
 			const projectData = await this.kv.get(`project: ${project_id}`)
 
@@ -125,6 +128,7 @@ export class MyMCP extends McpAgent {
 			}
 		});
 
+		// Delete project
 		this.server.tool("delete_project", "Delete a project and all its todos", {project_id: z.string().describe("Project Id")}, async ({project_id}) => {
 			const projectData = await this.kv.get(`project: ${project_id}`)
 
@@ -159,6 +163,7 @@ export class MyMCP extends McpAgent {
 			}
 		});
 
+		// Create todo
 		this.server.tool("create_todo", "Create a new todo in a project", {
 			project_id: z.string().describe("Project ID"),
 			title: z.string().describe("Todo title"),
@@ -200,6 +205,42 @@ export class MyMCP extends McpAgent {
 			}
 		});
 
+		// Update todo
+		this.server.tool("update_todo", "Update a todo's properties", {
+			todo_id: z.string().describe("Todo ID"),
+			title: z.string().describe("New todo title"),
+			description: z.string().optional().describe("New todo description"),
+			status: z.enum(["pending", "in_progress", "completed"]).optional().describe("New todo status"),
+			priority: z.enum(["low","medium","high"]).optional().describe("New todo priority"),
+		}, 
+		async ({todo_id, title, description, status, priority}) => {
+			const todoData = await this.kv.get(`todo: ${todo_id}`);
+			
+			if(!todoData) {
+				throw new Error(`Todo with id: ${todo_id} not found`);
+			}
+
+			const todo: Todo = JSON.parse(todoData);
+
+			if(title !== undefined) todo.title = title;
+			if(description !== undefined) todo.description = description;
+			if(status !== undefined)  todo.status = status;
+			if(priority !== undefined) todo.priority = priority;
+			todo.updatedAt = new Date().toISOString();
+
+			await this.kv.put(`todo: ${todo_id}`, JSON.stringify(todo));
+
+			return {
+				content: [
+					{
+						type: "text",
+						text: JSON.stringify(todo, null, 2),
+					}
+				]
+			}
+		});
+
+		// Delete todo
 		this.server.tool("delete_todo", "Delete todo from a project", {
 			todo_id: z.string().describe("Todo ID"),
 		}, 
@@ -225,6 +266,57 @@ export class MyMCP extends McpAgent {
 					{
 						type: "text",
 						text: `Todo ${todo_id} has been deleted.`
+					}
+				]
+			}
+		});
+
+		// Get a single todo
+		this.server.tool("get_todo", "Get a specific todo by ID", {
+			todo_id: z.string().describe("Todo ID"),
+		}, 
+		async ({todo_id}) => {
+			const todoData = await this.kv.get(`todo: ${todo_id}`)
+
+			if(!todoData) {
+				throw new Error(`Todo with Id: ${todo_id} not found.`)
+			}
+
+			const todo: Todo = JSON.parse(todoData) 
+
+			return {
+				content: [
+					{
+						type: "text",
+						text: JSON.stringify(todo, null, 2)
+					}
+				]
+			}
+		});
+
+		// Get all todos
+		this.server.tool("list_todo", "List all todos in a project", {
+			project_id: z.string().describe("Project ID"),
+			status: z.enum(["pending", "in_progress", "completed", "all"]).optional().describe("Filter by status")
+		}, 
+		async ({project_id, status}) => {
+			const projectData = await this.kv.get(`project: ${project_id}`)
+
+			if(!projectData) {
+				throw new Error(`Todo with Id: ${project_id} not found.`)
+			}
+
+			let todos = await this.getTodosByProject(project_id)
+
+			if(status && status !== "all") {
+				todos = todos.filter(todo => todo.status === status);
+			}
+
+			return {
+				content: [
+					{
+						type: "text",
+						text: JSON.stringify(todos, null, 2)
 					}
 				]
 			}
